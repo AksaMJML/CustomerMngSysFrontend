@@ -3,19 +3,20 @@ async function loadCustomer() {
     const customers = await response.json();
     console.log(customers);
 
-    let body = "";
+    const tbody = document.getElementById('tblCustomersBody');
+    tbody.innerHTML = ''; 
 
-    customers.forEach(customer => {
-        body += `<tr>
-                <td>${customer.id}</td>
-                <td>${customer.name}</td>
-                <td>${customer.address}</td>
-                <td>${customer.email}</td>
-                <td>${customer.salary}</td>
-            </tr>`;
+    customers.forEach(c => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+            <td>${escapeHtml(c.id)}</td>
+            <td>${escapeHtml(c.name)}</td>
+            <td>${escapeHtml(c.address)}</td>
+            <td><a href="mailto:${escapeHtml(c.email)}">${escapeHtml(c.email)}</a></td>
+            <td class="text-end">${formatCurrency(c.salary)}</td>
+        `;
+        tbody.appendChild(tr);
     });
-
-    document.getElementById('tblCustomers').innerHTML = body;
 
 }
 
@@ -50,4 +51,91 @@ function AddCustomer() {
         .catch((error) => console.error(error));
 }
 
-loadCustomer();
+document.addEventListener('DOMContentLoaded', () => {
+    document.getElementById('customerForm').addEventListener('submit', AddCustomer);
+    const salaryEl = document.getElementById('txtSalary');
+    if (salaryEl) {
+        salaryEl.addEventListener('blur', formatSalaryDisplay);
+        salaryEl.addEventListener('focus', unformatSalaryDisplay);
+    }
+    const tabAdd = document.getElementById('tab-add');
+    const tabList = document.getElementById('tab-list');
+    if (tabAdd && tabList) {
+        tabAdd.addEventListener('click', () => {
+            tabAdd.classList.add('active'); tabList.classList.remove('active');
+            document.getElementById('txtName').focus();
+            document.getElementById('customerForm').scrollIntoView({behavior:'smooth', block:'start'});
+        });
+        tabList.addEventListener('click', () => {
+            tabList.classList.add('active'); tabAdd.classList.remove('active');
+            document.getElementById('tblCustomers').scrollIntoView({behavior:'smooth', block:'start'});
+        });
+    }
+    loadCustomer();
+});
+
+function formatSalaryDisplay(e){
+    const el = e ? e.target : document.getElementById('txtSalary');
+    const num = parseFloat(String(el.value).replace(/[^0-9.\-]/g,'')) || 0;
+    el.value = new Intl.NumberFormat(undefined, {minimumFractionDigits:2, maximumFractionDigits:2}).format(num);
+}
+function unformatSalaryDisplay(e){
+    const el = e ? e.target : document.getElementById('txtSalary');
+    el.value = String(el.value).replace(/,/g,'');
+}
+function parseSalaryValue(val){
+    const cleaned = String(val||'').replace(/[^0-9.\-]/g,'');
+    const n = parseFloat(cleaned);
+    return isNaN(n) ? '' : n;
+}
+
+function showAlert(type, message, timeout = 4000) {
+    const placeholder = document.getElementById('alertPlaceholder');
+    const wrapper = document.createElement('div');
+    wrapper.innerHTML = `<div class="alert alert-${type} alert-dismissible fade show" role="alert">
+        ${message}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>`;
+    placeholder.appendChild(wrapper);
+    if (timeout) setTimeout(() => {
+        try { bootstrap.Alert.getOrCreateInstance(wrapper.querySelector('.alert')).close(); } catch(e){}
+    }, timeout);
+}
+
+function formatCurrency(value) {
+    const num = parseFloat(value) || 0;
+    return new Intl.NumberFormat(undefined, {style:'currency', currency:'USD', maximumFractionDigits:2}).format(num);
+}
+
+function escapeHtml(text) { if (text===null || text===undefined) return ''; return String(text).replace(/[&<>"']/g, (s) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[s])); }
+
+// Modern AddCustomer handler (replaces previous implementation by being declared later)
+async function AddCustomer(e) {
+    if (e && e.preventDefault) e.preventDefault();
+    const id = document.getElementById('txtId').value.trim();
+    const name = document.getElementById('txtName').value.trim();
+    const address = document.getElementById('txtAddress').value.trim();
+    const email = document.getElementById('txtEmail').value.trim();
+    const salary = parseSalaryValue(document.getElementById('txtSalary').value);
+
+    if (!id || !name) { showAlert('warning', 'ID and Name are required'); return; }
+    const payload = { id, name, address, email, salary };
+
+    try {
+        const res = await fetch('http://localhost:8080/add-customer', {
+            method: 'POST',
+            headers: {'Content-Type':'application/json'},
+            body: JSON.stringify(payload)
+        });
+        if (!res.ok) {
+            const text = await res.text();
+            throw new Error(text || 'Server error');
+        }
+        await res.text();
+        showAlert('success', 'Customer added successfully');
+        document.getElementById('customerForm').reset();
+        loadCustomer();
+    } catch (err) {
+        showAlert('danger', 'Failed to add customer: ' + err.message);
+    }
+}
