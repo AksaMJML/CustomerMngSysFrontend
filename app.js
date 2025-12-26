@@ -60,15 +60,21 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     const tabAdd = document.getElementById('tab-add');
     const tabList = document.getElementById('tab-list');
-    if (tabAdd && tabList) {
+    const panelAdd = document.getElementById('panel-add');
+    const panelList = document.getElementById('panel-list');
+    if (panelAdd) panelAdd.style.display = '';
+    if (panelList) panelList.style.display = 'none';
+    if (tabAdd && tabList && panelAdd && panelList) {
         tabAdd.addEventListener('click', () => {
             tabAdd.classList.add('active'); tabList.classList.remove('active');
+            panelAdd.style.display = ''; panelList.style.display = 'none';
             document.getElementById('txtName').focus();
-            document.getElementById('customerForm').scrollIntoView({behavior:'smooth', block:'start'});
         });
-        tabList.addEventListener('click', () => {
+        tabList.addEventListener('click', async () => {
             tabList.classList.add('active'); tabAdd.classList.remove('active');
-            document.getElementById('tblCustomers').scrollIntoView({behavior:'smooth', block:'start'});
+            panelAdd.style.display = 'none'; panelList.style.display = '';
+            await loadCustomer();
+            panelList.scrollIntoView({behavior:'smooth', block:'start'});
         });
     }
     loadCustomer();
